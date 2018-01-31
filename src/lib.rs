@@ -13,7 +13,7 @@ extern crate mockito;
 extern crate tokio_core;
 // TODO: use cpu_pool
 
-use std::io;
+use std::io::{self, Cursor};
 use futures::{Future, Stream};
 use tokio_core::reactor::Handle;
 use hyper::Client;
@@ -22,10 +22,11 @@ use hyper_tls::HttpsConnector;
 
 pub trait Download {
     type Url;
-    fn download(self, url: Self::Url) -> Box<Future<Item = Vec<u8>, Error = io::Error>>;
+    type Item: io::Read + ?Sized;
+    fn download(self, url: Self::Url) -> Box<Future<Item = Self::Item, Error = io::Error>>;
 }
 
-struct DownloadHttp {
+pub struct DownloadHttp {
     client: Client<HttpsConnector<HttpConnector>>,
 }
 
@@ -41,11 +42,16 @@ impl DownloadHttp {
 
 impl Download for DownloadHttp {
     type Url = hyper::Uri;
-    fn download(self, url: Self::Url) -> Box<Future<Item = Vec<u8>, Error = io::Error>> {
+    type Item = Cursor<Vec<u8>>;
+    fn download(self, url: Self::Url) -> Box<Future<Item = Self::Item, Error = io::Error>> {
         Box::new(
             self.client
                 .get(url)
-                .and_then(|res| res.body().concat2().map(|chunk| Vec::from(chunk.as_ref())))
+                .and_then(|res| {
+                    res.body()
+                        .concat2()
+                        .map(|chunk| Cursor::new(Vec::from(chunk.as_ref())))
+                })
                 .map_err(|err| io::Error::new(io::ErrorKind::Other, err)),
         )
     }
@@ -100,7 +106,7 @@ mod tests {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
         let download = DownloadHttp::new(&handle).download(uri).map(|buf| {
-            assert_eq!(String::from_utf8(buf).unwrap(), body);
+            assert_eq!(String::from_utf8(buf.into_inner()).unwrap(), body);
         });
         core.run(download).unwrap();
     }
