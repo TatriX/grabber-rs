@@ -46,18 +46,12 @@ mod tests {
     use download::Download;
     use download::http::Https;
 
-    const URL: &'static str = mockito::SERVER_URL;
-
     #[test]
     fn download() {
         let body = "En Taro Adun";
-        let _m = mock("GET", "/")
-            .with_status(200)
-            .with_header("Content-Type", "text/plain")
-            .with_body(body)
-            .create();
+        let _m = mock("GET", "/").with_body(body).create();
 
-        let uri: Uri = URL.parse().unwrap();
+        let uri: Uri = mockito::SERVER_URL.parse().unwrap();
         let mut core = Core::new().unwrap();
         let handle = core.handle();
         let download = Https::new(&handle).download(uri).map(|buf| {
