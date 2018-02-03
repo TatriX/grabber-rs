@@ -70,7 +70,13 @@ fn main() {
     ];
 
     let tasks = urls.iter().map(|url| {
-        grab(&handle, url).inspect(move |product| println!("{}\n{:#?}\n", url, product))
+        grab(&handle, url).inspect(move |product| {
+            println!(
+                "{}\n{}\n",
+                url,
+                serde_json::to_string_pretty(product).unwrap()
+            )
+        })
     });
     core.run(future::join_all(tasks)).unwrap();
 }
