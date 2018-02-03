@@ -1,9 +1,8 @@
-use scraper::{self, Html, Selector};
+use scraper::{Html, Selector};
 use scraper::element_ref::ElementRef;
 use parse::Parse;
 use std::io;
 use serde::Serialize;
-use std::ops::{Deref, Index};
 
 pub struct Xml<T, F>
 where
@@ -64,7 +63,6 @@ impl<'a> SimpleElement<'a> {
 mod tests {
     use parse::xml::Xml;
     use parse::Parse;
-    use scraper::Selector;
     use currency::Currency;
     use num_traits::cast::ToPrimitive;
     use std::io::Cursor;
@@ -88,7 +86,7 @@ mod tests {
             price: f64,
         }
 
-        let product = Xml::new(|document| {
+        let parser = Xml::new(|document| {
             let price_string = document.select(".price").text().unwrap();
             let price = Currency::from_str(&price_string)
                 .unwrap()
@@ -101,8 +99,8 @@ mod tests {
                 image: document.select("#img").attr("src").unwrap(),
                 price,
             })
-        }).parse(Cursor::new(xml_data))
-            .unwrap();
+        });
+        let product = parser.parse(Cursor::new(xml_data)).unwrap();
 
         assert_eq!(product, {
             Product {
