@@ -3,7 +3,6 @@
 //! Download(url) -> RawData
 //! Parse(RawData) -> Entity
 //! Format(Entity) -> Write
-#![feature(conservative_impl_trait)]
 
 // TODO: use cpu_pool
 
@@ -20,24 +19,21 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
-extern crate currency;
-extern crate num_traits;
 extern crate scraper;
 
 #[cfg(test)]
+extern crate currency;
+#[cfg(test)]
 extern crate mockito;
+#[cfg(test)]
+extern crate num_traits;
 
 pub mod download;
 pub mod parse;
 
 #[cfg(test)]
 mod tests {
-    // $("#productTitle").textContent
-    // $$(".offer-price")[0].textContent
-    // $("#imgBlkFront").src
-
     use mockito::{self, mock};
-    use hyper::Uri;
     use tokio_core::reactor::Core;
     use download::http::Https;
     use download::Download;
@@ -71,30 +67,30 @@ mod tests {
         let mut core = Core::new().unwrap();
         let handle = core.handle();
 
-        let uri: Uri = mockito::SERVER_URL.parse().unwrap();
+        let task = Https::new(&handle)
+            .download(mockito::SERVER_URL.parse().unwrap())
+            .map(|buf| {
+                let parser = Xml::new(|document| {
+                    Ok(Product {
+                        title: document.select("#title").text().unwrap(),
+                        image: document.select("#img").attr("src").unwrap(),
+                        price: Currency::from_str(&document.select(".price").text().unwrap())
+                            .unwrap()
+                            .value()
+                            .to_f64()
+                            .unwrap() / 100.0,
+                    })
+                });
+                let product = parser.parse(buf).unwrap();
 
-        let task = Https::new(&handle).download(uri).map(|buf| {
-            let parser = Xml::new(|document| {
-                Ok(Product {
-                    title: document.select("#title").text().unwrap(),
-                    image: document.select("#img").attr("src").unwrap(),
-                    price: Currency::from_str(&document.select(".price").text().unwrap())
-                        .unwrap()
-                        .value()
-                        .to_f64()
-                        .unwrap() / 100.0,
-                })
+                assert_eq!(product, {
+                    Product {
+                        title: "Title".to_string(),
+                        image: "image.png".to_string(),
+                        price: 9.99,
+                    }
+                });
             });
-            let product = parser.parse(buf).unwrap();
-
-            assert_eq!(product, {
-                Product {
-                    title: "Title".to_string(),
-                    image: "image.png".to_string(),
-                    price: 9.99,
-                }
-            });
-        });
 
         core.run(task).unwrap();
     }

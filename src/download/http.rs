@@ -26,7 +26,7 @@ impl Download for Https {
     fn download(self, url: Self::Url) -> Box<Future<Item = Self::Item, Error = io::Error>> {
         Box::new(
             self.client
-                .get(url)
+                .get(url.into())
                 .and_then(|res| {
                     res.body()
                         .concat2()
@@ -40,7 +40,6 @@ impl Download for Https {
 #[cfg(test)]
 mod tests {
     use futures::Future;
-    use hyper::Uri;
     use tokio_core::reactor::Core;
     use mockito::{self, mock};
     use download::Download;
@@ -51,12 +50,13 @@ mod tests {
         let body = "En Taro Adun";
         let _m = mock("GET", "/").with_body(body).create();
 
-        let uri: Uri = mockito::SERVER_URL.parse().unwrap();
         let mut core = Core::new().unwrap();
         let handle = core.handle();
-        let download = Https::new(&handle).download(uri).map(|buf| {
-            assert_eq!(String::from_utf8(buf.into_inner()).unwrap(), body);
-        });
+        let download = Https::new(&handle)
+            .download(mockito::SERVER_URL.parse().unwrap())
+            .map(|buf| {
+                assert_eq!(String::from_utf8(buf.into_inner()).unwrap(), body);
+            });
         core.run(download).unwrap();
     }
 }
